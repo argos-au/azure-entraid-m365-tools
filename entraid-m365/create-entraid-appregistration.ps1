@@ -33,11 +33,17 @@ try {
 Write-Host "Creating new app registration '$AppName'..."
 
 # 1) Create the new application
-$app = New-MgApplication -DisplayName $AppName
-if (!$app) {
-    Write-Error "Failed to create the application in Entra ID."
-    return
+try {
+    $app = New-MgApplication -DisplayName $AppName -ErrorAction Stop
 }
+catch {
+    <#Do this if a terminating exception happens#>
+    Write-Error "Failed to create the application in Entra ID."
+    Write-Error $_.Exception.Message
+    return
+    
+}
+
 
 # Grab relevant IDs from the newly created application
 $appId = $app.AppId
@@ -48,11 +54,17 @@ Write-Host "Client (App) ID: $appId"
 Write-Host "App Object ID: $appObjectId"
 
 # 2) Also create a Service Principal for the new application (so we can assign permissions to it).
-$sp = New-MgServicePrincipal -AppId $appId
-if (!$sp) {
+
+try {
+    $sp = New-MgServicePrincipal -AppId $appId
+}
+catch {
+    <#Do this if a terminating exception happens#>
     Write-Error "Failed to create a Service Principal for the new application."
+    Write-Error $_.Exception.Message
     return
 }
+
 $spObjectId = $sp.Id
 Write-Host "Service Principal created. Object ID: $spObjectId"
 
@@ -61,9 +73,13 @@ Write-Host "Service Principal created. Object ID: $spObjectId"
 $graphAppId = "00000003-0000-0000-c000-000000000000"
 
 Write-Host "Retrieving the Microsoft Graph Service Principal..."
-$graphSp = Get-MgServicePrincipal -Filter "AppId eq '$graphAppId'"
-if (!$graphSp) {
+try {
+    $graphSp = Get-MgServicePrincipal -Filter "AppId eq '$graphAppId'"
+}
+catch {
+    <#Do this if a terminating exception happens#>
     Write-Error "Failed to find Microsoft Graph Service Principal."
+    Write-Error $_.Exception.Message
     return
 }
 
@@ -182,12 +198,14 @@ foreach ($permName in $permissionsToAdd.Keys) {
             $_.AllowedMemberTypes -contains "User"
         }
         if ($scope) {
-            New-MgOAuth2PermissionGrant `
-                -ClientId $spObjectId `
-                -ConsentType "AllPrincipals" `
-                -PrincipalId $null `
-                -ResourceId $graphSp.Id `
-                -Scope $scope.Value | Out-Null
+            $newMgOAuth2PermissionGrantSplat = @{
+                ClientId = $spObjectId
+                ConsentType = "AllPrincipals"
+                PrincipalId = $null
+                ResourceId = $graphSp.Id
+                Scope = $scope.Value
+            }
+            New-MgOAuth2PermissionGrant @newMgOAuth2PermissionGrantSplat | Out-Null
             Write-Host " -> Granted admin consent for Delegated permission: $permName"
         }
     }
