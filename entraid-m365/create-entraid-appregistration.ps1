@@ -15,7 +15,11 @@
 
 param(
     [Parameter(Mandatory = $false)]
-    [string] $AppName = "MyEntraIDApp"
+    [string] $AppName = "MyEntraIDApp",
+    [Parameter(Mandatory = $false,ParameterSetName='SecretManagement')]
+    [switch] $SecretManagement,
+    [Parameter(Mandatory = $false,ParameterSetName='SecretManagement')]
+    [string]$VaultName
 )
 
 # 0) Check we are connected to Microsoft Graph
@@ -237,5 +241,18 @@ Write-Host "`n============================================="
 Write-Host "APP REGISTRATION CREATED SUCCESSFULLY"
 Write-Host "Entra ID Tenant ID: $tenantId"
 Write-Host "Client (App) ID:   $($app.AppId)"
-Write-Host "Client Secret:     $clientSecret"
+if($SecretManagement){
+    try {
+        Set-Secret -VaultName $VaultName -Name "$AppName - secret" -SecretValue $clientSecret -ErrorAction Stop
+        Write-Host "Client Secret stored in Key Vault: $VaultName"
+    }
+    catch {
+        Write-Error "Failed to store the client secret in Key Vault."
+        Write-Error $_.Exception.Message
+        Write-Host "Client Secret:     $clientSecret"
+    }
+}
+else{
+    Write-Host "Client Secret:     $clientSecret"
+}
 Write-Host "============================================="
